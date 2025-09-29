@@ -1,3 +1,17 @@
+<?php
+include "config.php";
+
+// Check admin access
+$admin_id = $_GET['admin_id'] ?? '';
+if(!in_array($admin_id, $admins)){
+    echo "<h3>Access Denied: You are not an admin</h3>";
+    exit;
+}
+
+// Load chat data
+$chats = loadJson($chatsFile); // messages stored in JSON
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,7 +31,6 @@
 <body>
 <div class="container my-4">
 <h3>Telegram Chat Dashboard</h3>
-<input type="hidden" id="admin_id" value="6631601772"> <!-- admin IDs -->
 
 <div class="mb-2">
 <label>Select User:</label>
@@ -28,6 +41,7 @@
 
 <div class="mb-2">
 <textarea id="adminMessage" class="form-control" placeholder="Type message"></textarea>
+<input type="file" id="adminMedia" class="form-control mt-1">
 <button class="btn btn-primary mt-1" id="sendBtn">Send</button>
 </div>
 
@@ -44,10 +58,11 @@
 
 <script>
 let chats = {};
+const admin_id = "<?= $admin_id ?>";
 
 // Load chats and populate user select
 async function loadChats(){
-    const res = await fetch('get_chat.php');
+    const res = await fetch('get_chat.php?admin_id='+admin_id);
     chats = await res.json();
     const userSelect = document.getElementById('userSelect');
     const prev = userSelect.value;
@@ -59,7 +74,7 @@ async function loadChats(){
     displayChat(prev || userSelect.value);
 }
 
-// Display chat for selected user with profile pics
+// Display chat for selected user with profile pics & media
 function displayChat(chat_id){
     const container = document.getElementById('chatContainer');
     container.innerHTML = '';
@@ -71,9 +86,18 @@ function displayChat(chat_id){
         const div = document.createElement('div');
         div.className = msg.from=='user' ? 'msg-user clearfix msg' : 'msg-admin clearfix msg';
         const pic = msg.profile_pic ? `<img src="${msg.profile_pic}" alt="User Pic">` : '';
+        let mediaHtml = '';
+        if(msg.file_url){
+            const ext = msg.file_url.split('.').pop().toLowerCase();
+            if(['png','jpg','jpeg','gif','webp'].includes(ext)){
+                mediaHtml = `<div><img src="${msg.file_url}" style="max-width:100%;margin-top:5px;border-radius:10px;"></div>`;
+            } else {
+                mediaHtml = `<div><a href="${msg.file_url}" target="_blank">Download File</a></div>`;
+            }
+        }
         div.innerHTML = msg.from=='user'
-            ? `${pic}<b>${msg.name}:</b> ${msg.message}`
-            : `<b>Admin:</b> ${msg.message} ${pic}`;
+            ? `${pic}<b>${msg.name}:</b> ${msg.message || ''} ${mediaHtml}`
+            : `<b>Admin:</b> ${msg.message || ''} ${pic} ${mediaHtml}`;
         chatBox.appendChild(div);
     });
     container.appendChild(chatBox);
@@ -85,20 +109,26 @@ document.getElementById('userSelect').addEventListener('change', e=>{
     displayChat(e.target.value);
 });
 
-// Send message to selected user
+// Send message (text + media)
 document.getElementById('sendBtn').addEventListener('click', async ()=>{
     const msg = document.getElementById('adminMessage').value.trim();
-    const admin_id = document.getElementById('admin_id').value.trim();
+    const fileInput = document.getElementById('adminMedia');
+    const file = fileInput.files[0] || null;
     const chat_id = document.getElementById('userSelect').value;
-    if(!msg || !chat_id) return alert('Select user and type message');
-    await fetch(`chat_send.php?admin_id=${admin_id}&chat_id=${chat_id}&message=${encodeURIComponent(msg)}`);
+    if(!msg && !file) return alert('Type a message or select a file');
+    const formData = new FormData();
+    formData.append('admin_id', admin_id);
+    formData.append('chat_id', chat_id);
+    formData.append('message', msg);
+    if(file) formData.append('file', file);
+    await fetch('chat_send.php',{method:'POST',body:formData});
     document.getElementById('adminMessage').value = '';
+    fileInput.value = '';
     loadChats();
 });
 
 // Load settings
 async function loadSettings() {
-    const admin_id = document.getElementById('admin_id').value.trim();
     const res = await fetch('chat_settings_api.php?admin_id=' + admin_id);
     const data = await res.json();
     document.getElementById('autoDeleteDays').value = data.auto_delete_days || 1;
@@ -106,15 +136,13 @@ async function loadSettings() {
 
 // Save settings
 document.getElementById('saveSettingsBtn').addEventListener('click', async ()=>{
-    const admin_id = document.getElementById('admin_id').value.trim();
     const days = parseInt(document.getElementById('autoDeleteDays').value);
     await fetch(`chat_settings_api.php?admin_id=${admin_id}&auto_delete_days=${days}`);
     alert('Settings saved!');
 });
 
-// Clean old chats
+// Clean old chats manually
 document.getElementById('cleanNowBtn').addEventListener('click', async ()=>{
-    const admin_id = document.getElementById('admin_id').value.trim();
     await fetch('clean_chat.php?admin_id=' + admin_id);
     alert('Old messages cleaned!');
     loadChats();
