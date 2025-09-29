@@ -2,17 +2,14 @@
 include "config.php";
 
 $admin_id = $_GET['admin_id'] ?? '';
-if(!in_array($admin_id, $admins)) exit(json_encode([]));
+$chat_id = $_GET['chat_id'] ?? '';
+
+if(!in_array($admin_id, $admins)){ echo json_encode([]); exit; }
 
 $chats = loadChat();
-
-// Auto-clean old messages
-$max_age = ($settings['auto_delete_days'] ?? 1) * 86400;
-$now = time();
-foreach($chats as $id => &$chat){
-    if(isset($chat['messages'])){
-        $chat['messages'] = array_filter($chat['messages'], fn($msg)=>($now-$msg['timestamp']) <= $max_age);
-    }
+if($chat_id && isset($chats[$chat_id])){
+    $chat = $chats[$chat_id]['messages'] ?? [];
+    echo json_encode($chat);
+}else{
+    echo json_encode([]);
 }
-
-echo json_encode($chats);
