@@ -10,7 +10,17 @@ if(!in_array($admin_id, $admins)){
 
 // Load chat data
 $chats = loadJson($chatsFile); // messages stored in JSON
+$settings = loadJson($settingsFile); // settings like auto-delete days
+$autoDeleteDays = $settings['auto_delete_days'] ?? 1;
 
+// Auto-delete old messages
+$threshold = strtotime("-$autoDeleteDays days");
+foreach($chats as $user => &$chat){
+    $chat['messages'] = array_filter($chat['messages'], function($msg) use($threshold){
+        return strtotime($msg['timestamp']) >= $threshold;
+    });
+}
+saveJson($chatsFile, $chats);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -49,7 +59,7 @@ $chats = loadJson($chatsFile); // messages stored in JSON
 <div class="card-body">
 <h5>Admin Settings</h5>
 <label>Auto-delete messages older than (days):</label>
-<input type="number" id="autoDeleteDays" class="form-control" min="1">
+<input type="number" id="autoDeleteDays" class="form-control" min="1" value="<?= $autoDeleteDays ?>">
 <button class="btn btn-warning mt-2" id="saveSettingsBtn">Save Settings</button>
 <button class="btn btn-danger mt-2" id="cleanNowBtn">Clean Now</button>
 </div>
@@ -127,13 +137,6 @@ document.getElementById('sendBtn').addEventListener('click', async ()=>{
     loadChats();
 });
 
-// Load settings
-async function loadSettings() {
-    const res = await fetch('chat_settings_api.php?admin_id=' + admin_id);
-    const data = await res.json();
-    document.getElementById('autoDeleteDays').value = data.auto_delete_days || 1;
-}
-
 // Save settings
 document.getElementById('saveSettingsBtn').addEventListener('click', async ()=>{
     const days = parseInt(document.getElementById('autoDeleteDays').value);
@@ -151,7 +154,6 @@ document.getElementById('cleanNowBtn').addEventListener('click', async ()=>{
 // Auto-refresh every 5s
 setInterval(loadChats,5000);
 loadChats();
-loadSettings();
 </script>
 </body>
 </html>
