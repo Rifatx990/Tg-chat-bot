@@ -1,17 +1,15 @@
 <?php
 include "config.php";
-header('Content-Type: application/json');
 
-$admin_id = $_REQUEST['admin_id'] ?? '';
-if (!$admin_id || !in_array($admin_id, $admins)) {
-    echo json_encode(['status'=>'error','message'=>'Unauthorized']);
-    exit;
-}
+$admin_id = $_GET['admin_id'] ?? '';
+if(!in_array($admin_id, $admins)) exit(json_encode(['error'=>'Access denied']));
 
 $settings = loadSettings();
 
-if(isset($_REQUEST['auto_delete_days'])) {
-    $settings['auto_delete_days'] = max(1,intval($_REQUEST['auto_delete_days']));
+// Update if parameter provided
+if(isset($_GET['auto_delete_days'])){
+    $days = max(1,intval($_GET['auto_delete_days']));
+    $settings['auto_delete_days'] = $days;
     saveSettings($settings);
 }
 
