@@ -9,18 +9,8 @@ if(!in_array($admin_id, $admins)){
 }
 
 // Load chat data
-$chats = loadJson($chatsFile); // messages stored in JSON
-$settings = loadJson($settingsFile); // settings like auto-delete days
-$autoDeleteDays = $settings['auto_delete_days'] ?? 1;
-
-// Auto-delete old messages
-$threshold = strtotime("-$autoDeleteDays days");
-foreach($chats as $user => &$chat){
-    $chat['messages'] = array_filter($chat['messages'], function($msg) use($threshold){
-        return strtotime($msg['timestamp']) >= $threshold;
-    });
-}
-saveJson($chatsFile, $chats);
+$chats = loadChat();
+$settings = loadSettings();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,7 +49,7 @@ saveJson($chatsFile, $chats);
 <div class="card-body">
 <h5>Admin Settings</h5>
 <label>Auto-delete messages older than (days):</label>
-<input type="number" id="autoDeleteDays" class="form-control" min="1" value="<?= $autoDeleteDays ?>">
+<input type="number" id="autoDeleteDays" class="form-control" min="1" value="<?= $settings['auto_delete_days'] ?? 1 ?>">
 <button class="btn btn-warning mt-2" id="saveSettingsBtn">Save Settings</button>
 <button class="btn btn-danger mt-2" id="cleanNowBtn">Clean Now</button>
 </div>
@@ -89,7 +79,7 @@ function displayChat(chat_id){
     const container = document.getElementById('chatContainer');
     container.innerHTML = '';
     if(!chat_id || !chats[chat_id]) return;
-    const messages = chats[chat_id].messages;
+    const messages = chats[chat_id].messages || [];
     const chatBox = document.createElement('div');
     chatBox.className = 'chat-box';
     messages.forEach(msg => {
